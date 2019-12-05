@@ -177,10 +177,10 @@ class netio230a(object):
             except:
                 md = md5.new()
             md.update(msg.encode("ascii"))
-            loginString = "clogin " + self.__username + " " + md.hexdigest() + TELNET_LINE_ENDING
+            loginString = "clogin " + self.__username + " " + md.hexdigest()
         else:
             # use the password in cleartext
-            loginString = "login " + self.__username + " " + self.__password + TELNET_LINE_ENDING
+            loginString = "login " + self.__username + " " + self.__password
         try:
             # send login string and wait for the answer
             response = self.__sendRequest(loginString, True, lock_already_acquired)
