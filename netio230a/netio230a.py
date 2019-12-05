@@ -56,6 +56,7 @@ import socket
 import select
 # We also need threads to watch the socket for FINs (remote disconnects)
 import threading
+
 # for md5 checksum:
 try:
     import hashlib
@@ -65,7 +66,7 @@ except ImportError:
 # for RegularExpressions:
 import re
 ## for debugging (set debug mark with pdb.set_trace() )
-#import pdb
+# import pdb
 # for math.ceil()
 import math
 # for shlex.shlex() (to parse answers from the NETIO 230A)
@@ -75,21 +76,22 @@ import errno
 
 import time
 ### for date.today()
-#from datetime import date
+# from datetime import date
 from datetime import datetime, timedelta
 
 TELNET_LINE_ENDING = "\r\n"
 TELNET_SOCKET_TIMEOUT = 5
-INITIAL_WAIT_FOR_OTHER_REQUEST = 0.013 # 13 ms to wait for other requests to terminate (later requests use the mean request time)
-#ANTI_FLOODING_WAIT = 0.001 # wait 1 ms before sending the next request (after having received the last response)
-ANTI_FLOODING_WAIT = 0.0
+INITIAL_WAIT_FOR_OTHER_REQUEST = 0.013  # 13 ms to wait for other requests to terminate (later requests use the mean request time)
+ANTI_FLOODING_WAIT = 0.001  # wait 1 ms before sending the next request (after having received the last response)
+# ANTI_FLOODING_WAIT = 0.0
 MAX_NUMBER_OF_REQUESTS_BEFORE_RECONNECT = 500
 # The time we wait until we start monitoring the status of the socket
-WATCH_SOCKET_WAIT = 10.
+WATCH_SOCKET_WAIT = 10.0
 WATCH_WAKE_TIME = 0.2
 MAX_SECONDS_WAIT_FOR_RECEIVE = 1.0
 MAX_SECONDS_WAIT_FOR_RECEIVE_HELLO = MAX_SECONDS_WAIT_FOR_RECEIVE * 3
 TIMES_WAIT_FOR_RECEIVE = 100
+
 
 class netio230a(object):
     """netio230a is the basic class that you want to instantiate when communicating
@@ -116,10 +118,10 @@ class netio230a(object):
         self.__secureLogin = secureLogin
         self.__tcp_port = customTCPPort
         self.__bufsize = 1024
-        self.__power_sockets = [ PowerSocket() for i in range(4) ]
+        self.__power_sockets = [PowerSocket() for i in range(4)]
         self.__create_socket_and_login()
 
-    def __create_socket_and_login(self, lock_already_acquired = False):
+    def __create_socket_and_login(self, lock_already_acquired=False):
         # create a TCP/IP socket
         self.__s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.__s.settimeout(TELNET_SOCKET_TIMEOUT)
@@ -130,8 +132,7 @@ class netio230a(object):
         self.__watchSocketThread.daemon = True
         self.__watchSocketThread.start()
 
-
-    def __login(self, lock_already_acquired = False):
+    def __login(self, lock_already_acquired=False):
         """Login to the server using the credentials given to the constructor.
            Note that this is a private method called by the constructor
            (so all connection details are set already)."""
@@ -139,20 +140,23 @@ class netio230a(object):
         try:
             self.__s.connect((self.__host, self.__tcp_port))
             # wait for the answer
-            data = self.__receive( MAX_SECONDS_WAIT_FOR_RECEIVE_HELLO )
+            data = self.__receive(MAX_SECONDS_WAIT_FOR_RECEIVE_HELLO)
         except Exception as error:
             if type(error) == socket.timeout:
                 raise NameError("Timeout while connecting to " + self.__host)
-                #print("There was a timeout")
+                # print("There was a timeout")
             elif type(error) == socket.gaierror or type(error) == socket.error and error.errno == errno.ENETUNREACH:
-                raise NameError("Unable to understand the host you gave: %s. Please provide a correct IP address or domain name." % self.__host)
+                raise NameError(
+                    "Unable to understand the host you gave: %s. Please provide a correct IP address or domain name." % self.__host)
             elif type(error) == socket.error:
                 if error.errno == errno.ECONNREFUSED:
-                    raise NameError("The connection was refused by the remote host. Possible errors: wrong IP or wrong TCP port given or the telnet server on the NETIO-230A crashed.")
+                    raise NameError(
+                        "The connection was refused by the remote host. Possible errors: wrong IP or wrong TCP port given or the telnet server on the NETIO-230A crashed.")
                 elif error.errno == errno.EHOSTUNREACH:
                     raise NameError("There is no route to the host given: " + self.__host)
                 elif error.errno == errno.ECONNRESET:
-                    raise NameError("The connection was reset by the device. This is usually the case when you still have another network socket connected to the device. It may also be the case when the telnet server on the device crashed. In this case reboot the device (if possible & sensible).")
+                    raise NameError(
+                        "The connection was reset by the device. This is usually the case when you still have another network socket connected to the device. It may also be the case when the telnet server on the device crashed. In this case reboot the device (if possible & sensible).")
             # in any other case just hand on the risen error:
             raise error
         except Exception as error:
@@ -160,12 +164,13 @@ class netio230a(object):
 
         # The answer should be in the form     "100 HELLO E675DDA5"
         # where the last eight letters are random hexcode used to hash the password
-        if self.__reSearch("^100 HELLO [0-9A-F]{8}"+TELNET_LINE_ENDING+"$", data) == None and \
-           self.__reSearch("^100 HELLO [0-9A-F]{8} - KSHELL V1.."+TELNET_LINE_ENDING+"$", data) == None :
-            raise NameError("Error while connecting: Not received a \"100 HELLO ... signal from the remote device. Maybe not a NET-IO 230A?")
+        if self.__reSearch("^100 HELLO [0-9A-F]{8}" + TELNET_LINE_ENDING + "$", data) == None and \
+                self.__reSearch("^100 HELLO [0-9A-F]{8} - KSHELL V1.." + TELNET_LINE_ENDING + "$", data) == None:
+            raise NameError(
+                "Error while connecting: Not received a \"100 HELLO ... signal from the remote device. Maybe not a NET-IO 230A?")
         if self.__secureLogin:
-            hash=str(data).split(" ")[2]
-            msg=self.__username + self.__password + hash
+            hash = str(data).split(" ")[2]
+            msg = self.__username + self.__password + hash
             # for md5 checksum:
             try:
                 md = hashlib.md5()
@@ -186,9 +191,11 @@ class netio230a(object):
             except:
                 problem = "?"
             if problem.find("502 UNKNOWN COMMAND") != -1:
-                raise NameError("Error while connecting: Login failed with message 502 UNKNOWN COMMAND. This is usually the case when the telnet server crashed. Reboot the NETIO-230A device to get it up running again.")
+                raise NameError(
+                    "Error while connecting: Login failed with message 502 UNKNOWN COMMAND. This is usually the case when the telnet server crashed. Reboot the NETIO-230A device to get it up running again.")
             elif problem.find("501 INVALID PARAMETER") != -1:
-                raise NameError("Error while connecting: Login failed with message 501 INVALID PARAMETER. This is usually the case when the telnet server crashed. Reboot the NETIO-230A device to get it up running again.")
+                raise NameError(
+                    "Error while connecting: Login failed with message 501 INVALID PARAMETER. This is usually the case when the telnet server crashed. Reboot the NETIO-230A device to get it up running again.")
             elif problem.find("504 ALREADY LOGGED IN") != -1:
                 raise NameError("You are already logged in. Something strange happened.")
             else:
@@ -203,8 +210,8 @@ class netio230a(object):
             inputs = [self.__s]
             outputs = [self.__s]
             while True:
-                if ( time.time() - self.__last_request_received ) < WATCH_SOCKET_WAIT:
-                    time.sleep(WATCH_SOCKET_WAIT - (time.time()-self.__last_request_received))
+                if (time.time() - self.__last_request_received) < WATCH_SOCKET_WAIT:
+                    time.sleep(WATCH_SOCKET_WAIT - (time.time() - self.__last_request_received))
                 else:
                     time.sleep(WATCH_WAKE_TIME)
                 if not self.connected():
@@ -219,8 +226,9 @@ class netio230a(object):
                     if self.__s in readable:
                         answ = self.__s.recv(self.__bufsize)
                         if self.__reSearch("^130 CONNECTION TIMEOUT", answ):
-                            self.log("The NETIO230A wants to close the connection due to a timeout. We'll respect that.")
-                        elif len(answ) == 0 :
+                            self.log(
+                                "The NETIO230A wants to close the connection due to a timeout. We'll respect that.")
+                        elif len(answ) == 0:
                             self.log("The NETIO230A has closed the connection. We do the same now.")
                             break
                         else:
@@ -247,12 +255,12 @@ class netio230a(object):
 
     def log(self, message, line_break=True):
         if self.logging:
-            self.log_file.write("%s %s%s" % (datetime.now().isoformat(), message, "\n" if line_break else "") )
+            self.log_file.write("%s %s%s" % (datetime.now().isoformat(), message, "\n" if line_break else ""))
             # or if the ternary operator is not available:
-            #n=""
-            #if line_break:
+            # n=""
+            # if line_break:
             #    n = "\n"
-            #self.log_file.write("%s %s%s" % (datetime.now().isoformat(), message, n) )
+            # self.log_file.write("%s %s%s" % (datetime.now().isoformat(), message, n) )
 
     def getPowerSocketList(self):
         """Sends request to the NETIO 230A to ask for the power socket status.
@@ -262,28 +270,29 @@ class netio230a(object):
         We convert them to a list of four boolean values: """
         return [bool(int(status)) for status in self.__sendRequest("port list")]
 
-    def getPowerSocketSetup(self,power_socket):
+    def getPowerSocketSetup(self, power_socket):
         """Sends request to the NETIO 230A to ask for the setup of the power socket given as parameter.
         returns the "port setup" string as specifyed by Koukaam"""
-        return self.__sendRequest("port setup " + str(power_socket+1))
+        return self.__sendRequest("port setup " + str(power_socket + 1))
 
-    def setPowerSocketPower(self,power_socket,switchOn=False):
+    def setPowerSocketPower(self, power_socket, switchOn=False):
         """setPowerSocketPower(power_socket,switchOn=False): method to set the power status of the power socket specified by the argument power_socket to the bool argument switchOn
         returns nothing"""
         # the type conversion of switchOn ensures that the values are either "0" or "1":
-        self.__sendRequest("port " + str(power_socket) + " " + str(int(bool(int(switchOn)))) )
+        self.__sendRequest("port " + str(power_socket) + " " + str(int(bool(int(switchOn)))))
 
-    def togglePowerSocketPower(self,power_socket):
+    def togglePowerSocketPower(self, power_socket):
         """togglePowerSocketPower(power_socket): toggles the power status of power socket specified by the (one based) argument power_socket.
         returns a boolean indicating the new status"""
-        previous_state = self.getPowerSocket(power_socket-1).getPowerOn() # the getPowerSocket() function has a zero based argument! therefore -1
+        previous_state = self.getPowerSocket(
+            power_socket - 1).getPowerOn()  # the getPowerSocket() function has a zero based argument! therefore -1
         self.setPowerSocketPower(power_socket, not previous_state)
         return not previous_state
 
-    def setPowerSocketTempInterrupt(self,power_socket):
-        self.__sendRequest("port " + str(int(power_socket)) + " int" )
+    def setPowerSocketTempInterrupt(self, power_socket):
+        self.__sendRequest("port " + str(int(power_socket)) + " int")
 
-    def setPowerSocketManualMode(self,power_socket,manualMode=True):
+    def setPowerSocketManualMode(self, power_socket, manualMode=True):
         self.__sendRequest("port " + str(int(power_socket)) + " manual")
 
     def getFirmwareVersion(self):
@@ -292,22 +301,23 @@ class netio230a(object):
     def getDeviceAlias(self):
         return self.__sendRequest("alias")
 
-    def setDeviceAlias(self,alias = "netio230a"):
+    def setDeviceAlias(self, alias="netio230a"):
         self.__sendRequest("alias " + alias)
 
     # this command is operation-safe: it does not switch the power sockets on/off during reboot of the NETIO 230A
     def reboot(self):
-        response = self.__sendRequest("reboot",False)
+        response = self.__sendRequest("reboot", False)
         if re.search("^120 Rebooting", response) != None:
-            time.sleep(.05) # no reboot if disconnecting too soon
+            time.sleep(.05)  # no reboot if disconnecting too soon
 
-    def getWatchdogSettings(self,power_socket):
+    def getWatchdogSettings(self, power_socket):
         return self.__sendRequest("port wd " + str(power_socket))
 
     def getNetworkSettings(self):
         return self.__sendRequest("system eth")
 
-    def setNetworkSettings(self,dhcpMode=False,deviceIP="192.168.1.2",subnetMask="255.255.255.0",gatewayIP="192.168.1.1"):
+    def setNetworkSettings(self, dhcpMode=False, deviceIP="192.168.1.2", subnetMask="255.255.255.0",
+                           gatewayIP="192.168.1.1"):
         if dhcpMode:
             self.__sendRequest("system eth dhcp")
         else:
@@ -316,7 +326,7 @@ class netio230a(object):
     def getDnsServer(self):
         return self.__sendRequest("system dns")
 
-    def setDnsServer(self,dnsServer="192.168.1.1"):
+    def setDnsServer(self, dnsServer="192.168.1.1"):
         self.__sendRequest("system dns " + dnsServer)
 
     def getSystemDiscoverableUsingTool(self):
@@ -325,31 +335,31 @@ class netio230a(object):
         else:
             return False
 
-    def setSystemDiscoverableUsingTool(self,setDiscoverable=True):
+    def setSystemDiscoverableUsingTool(self, setDiscoverable=True):
         if setDiscoverable:
             command = "enable"
         else:
             command = "disable"
         self.__sendRequest("system discover " + command)
 
-    def setSwitchDelay(self,seconds):
-        return self.__sendRequest("system swdelay " + str(int(math.ceil(seconds*10.0))))
+    def setSwitchDelay(self, seconds):
+        return self.__sendRequest("system swdelay " + str(int(math.ceil(seconds * 10.0))))
 
     def getSwitchDelay(self):
-        return int(self.__sendRequest("system swdelay"))/10.0
+        return int(self.__sendRequest("system swdelay")) / 10.0
 
     def getSntpSettings(self):
         return self.__sendRequest("system sntp")
 
-    def setSntpSettings(self,enable=True,sntpServer="time.nist.gov"):
+    def setSntpSettings(self, enable=True, sntpServer="time.nist.gov"):
         if enable:
             command = "enable"
         else:
             command = "disable"
         self.__sendRequest("system sntp " + " " + sntpServer)
 
-    def setSystemTime(self,dt):
-        self.__sendRequest("system time " + dt.strftime("%Y/%m/%d,%H:%M:%S") )
+    def setSystemTime(self, dt):
+        self.__sendRequest("system time " + dt.strftime("%Y/%m/%d,%H:%M:%S"))
 
     def getSystemTime(self):
         """getSystemTime() returns a datetime object"""
@@ -371,16 +381,16 @@ class netio230a(object):
 
     def getSystemTimezone(self):
         """getSystemTimezone() returns the timezone offset from UTC in hours of the NETIO-230A."""
-        return float(int(self.__sendRequest("system timezone")))/3600.0
+        return float(int(self.__sendRequest("system timezone"))) / 3600.0
 
-    def setSystemTimezone(self,hoursOffset):
+    def setSystemTimezone(self, hoursOffset):
         """setSystemTimezone(hoursOffset) sets the timezone offset from UTC in hours of the NETIO-230A."""
-        self.__sendRequest("system timezone " + str(math.ceil(hoursOffset*3600.0)))
+        self.__sendRequest("system timezone " + str(math.ceil(hoursOffset * 3600.0)))
 
-    def setPowerSocket(self,number,power_socket):
+    def setPowerSocket(self, number, power_socket):
         self.__power_sockets[number] = power_socket
 
-    def getPowerSocket(self,number):
+    def getPowerSocket(self, number):
         self.updatePowerSocketsStatus()
         return self.__power_sockets[number]
 
@@ -394,13 +404,13 @@ class netio230a(object):
         for i in range(4):
             status_splitter = shlex.shlex(self.getPowerSocketSetup(i), posix=True)
             status_splitter.whitespace_split = True
-            power_sockets.append( list(status_splitter) )
+            power_sockets.append(list(status_splitter))
             self.__power_sockets[i].setName(power_sockets[i][0])
             self.__power_sockets[i].setPowerOnAfterPowerLoss(bool(int(power_sockets[i][3])))
             self.__power_sockets[i].setPowerOn(powerOnStatus[i])
-            self.__power_sockets[i].setManualMode(power_sockets[i][1]=="manual")
+            self.__power_sockets[i].setManualMode(power_sockets[i][1] == "manual")
             self.__power_sockets[i].setInterruptDelay(int(power_sockets[i][2]))
-            #still missing: setWatchdogOn
+            # still missing: setWatchdogOn
 
     def __assureConnection(self):
         try:
@@ -411,7 +421,8 @@ class netio230a(object):
             self.__create_socket_and_login(True)
 
     def __disconnectAfterLargeNumberOfRequests(self):
-        if MAX_NUMBER_OF_REQUESTS_BEFORE_RECONNECT > 0 and (self.number_of_sent_requests+1) % MAX_NUMBER_OF_REQUESTS_BEFORE_RECONNECT == 0:
+        if MAX_NUMBER_OF_REQUESTS_BEFORE_RECONNECT > 0 and (
+                self.number_of_sent_requests + 1) % MAX_NUMBER_OF_REQUESTS_BEFORE_RECONNECT == 0:
             self.number_of_sent_requests += 1
             if not self.connected(): return
             print("%d requests made, reconnecting..." % MAX_NUMBER_OF_REQUESTS_BEFORE_RECONNECT)
@@ -424,46 +435,66 @@ class netio230a(object):
             got_lock = self.__lock.acquire(False)
             if got_lock:
                 return True
-            wait_time = self.mean_request_time*.5
+            wait_time = self.mean_request_time * .5
             time.sleep(wait_time)
             counter += 1
             print("concurrent action for request: %s" % request)
-            self.log("Waiting for an other request to finish. Average time for processes to finish is %.6f s after a total number of %d requests." % (self.mean_request_time, self.number_of_sent_requests) )
+            self.log(
+                "Waiting for an other request to finish. Average time for processes to finish is %.6f s after a total number of %d requests." % (
+                self.mean_request_time, self.number_of_sent_requests))
             if counter * wait_time >= 3 * (self.mean_request_time + ANTI_FLOODING_WAIT):
                 # If we waited for too long, we give up.
                 raise NameError("Sorry, some other process is sending a request you cannot send yours now.")
         return None
 
-
     def __waitFloodingProtect(self):
-            if ANTI_FLOODING_WAIT > 0.0005 and time.time()-self.__last_request_received < ANTI_FLOODING_WAIT:
-                time.sleep(ANTI_FLOODING_WAIT-(time.time()-self.__last_request_received))
+        if ANTI_FLOODING_WAIT > 0.0005 and time.time() - self.__last_request_received < ANTI_FLOODING_WAIT:
+            time.sleep(ANTI_FLOODING_WAIT - (time.time() - self.__last_request_received))
+
+    def __sendNoop(self):
+        request = "noop"
+        try:
+            self.__send(request.encode("ascii") + TELNET_LINE_ENDING.encode("ascii"))
+        except Exception as error:
+            self.log("could not send the command: " + str(error))
+            # sending was already not successful, we don't need to try to receive
+            return
+        try:
+            data = self.__receive()
+        except Exception as error:
+            # maybe we should try to reconnect here too before giving up.
+            self.log("trying to receive data failed: " + str(error))
 
     # generic method to send requests to the NET-IO 230A and checking the response
-    def __sendRequest(self,request,complainIfAnswerNot250=True,lock_already_acquired=False):
+    def __sendRequest(self, request, complainIfAnswerNot250=True, lock_already_acquired=False):
         if not lock_already_acquired:
             assert self.__acquireLockWaitForOtherRequestsToFinish()
         self.__disconnectAfterLargeNumberOfRequests()
+        # first, send a "nop" to probe if the connection is really still there (avoid running into a RST)
+        self.__sendNoop()
         self.__assureConnection()
         try:
             self.__waitFloodingProtect()
             starting_time = time.time()
             try:
-                self.__send(request.encode("ascii")+TELNET_LINE_ENDING.encode("ascii"))
+                self.__send(request.encode("ascii") + TELNET_LINE_ENDING.encode("ascii"))
             except Exception as error:
-                self.log("could not send the command: "+str(error))
+                self.log("could not send the command: " + str(error))
                 raise NameError("Sending the command '%s' produced this error: %s." % (request, error))
             try:
                 data = self.__receive()
             except Exception as error:
                 # maybe we should try to reconnect here too before giving up.
-                self.log("trying to receive data failed: "+str(error))
-                raise NameError("trying to receive data failed: "+str(error))
+                self.log("trying to receive data failed: " + str(error))
+                raise NameError("trying to receive data failed: " + str(error))
             if self.__reSearch("^250 ", data) == None and complainIfAnswerNot250:
-                raise NameError("Error while sending request: " + request + "\nresponse from NET-IO 230A is:  " + data.replace(TELNET_LINE_ENDING,''))
+                raise NameError(
+                    "Error while sending request: " + request + "\nresponse from NET-IO 230A is:  " + data.replace(
+                        TELNET_LINE_ENDING, ''))
             else:
-                data = data.replace("250 ","").replace(TELNET_LINE_ENDING,"")
-                self.mean_request_time = ( self.number_of_sent_requests*self.mean_request_time + (time.time()-starting_time) ) / (self.number_of_sent_requests + 1)
+                data = data.replace("250 ", "").replace(TELNET_LINE_ENDING, "")
+                self.mean_request_time = (self.number_of_sent_requests * self.mean_request_time + (
+                            time.time() - starting_time)) / (self.number_of_sent_requests + 1)
                 self.number_of_sent_requests += 1
                 self.__last_request_received = time.time()
         finally:
@@ -486,7 +517,7 @@ class netio230a(object):
             pass
         try:
             # send the quit command to the box (if we have an open connection):
-            self.__send("quit".encode("ascii")+TELNET_LINE_ENDING.encode("ascii"))
+            self.__send("quit".encode("ascii") + TELNET_LINE_ENDING.encode("ascii"))
             self.__receive()  # should give  110 BYE
         except Exception as error:
             raise error
@@ -518,16 +549,16 @@ class netio230a(object):
         self.log(data, False)
         self.__s.send(data)
 
-    def __receive(self, wait_time = MAX_SECONDS_WAIT_FOR_RECEIVE):
+    def __receive(self, wait_time=MAX_SECONDS_WAIT_FOR_RECEIVE):
         assert self.__s
         sock = self.__s
         start = time.time()
         while sock not in select.select([sock], [sock], [sock])[0]:
-            time.sleep(wait_time/TIMES_WAIT_FOR_RECEIVE)
+            time.sleep(wait_time / TIMES_WAIT_FOR_RECEIVE)
             if time.time() - start > wait_time:
                 raise NameError("The NETIO230A did not answer in time (%.3f s)." % wait_time)
         response = sock.recv(self.__bufsize)
-        if len(response)==0:
+        if len(response) == 0:
             self.__shutdownSocket()
             raise NameError("The NETIO230A is closing the connection unexpectedly")
         self.log(response, False)
@@ -542,46 +573,52 @@ class PowerSocket(object):
 
     def __init__(self):
         self.__name = ""
-        self.__manualMode = True #  False  means  timer mode
+        self.__manualMode = True  # False  means  timer mode
         self.__powerOn = False
         self.__watchdogOn = False
         self.__interruptDelay = 2
 
-    def setManualMode(self,manualMode=True):
+    def setManualMode(self, manualMode=True):
         self.__manualMode = manualMode
+
     def getManualMode(self):
         return self.__manualMode
 
-    def setPowerOnAfterPowerLoss(self,powerOn=False):
+    def setPowerOnAfterPowerLoss(self, powerOn=False):
         self.__powerOnAfterPowerLoss = powerOn
+
     def getPowerOnAfterPowerLoss(self):
         return self.__powerOnAfterPowerLoss
 
-    def setTimerMode(self,timerMode):
+    def setTimerMode(self, timerMode):
         self.__manualMode = not timerMode
+
     def getTimerMode(self):
         return not self.__manualMode
 
-    def setPowerOn(self,powerOn = False):
+    def setPowerOn(self, powerOn=False):
         self.__powerOn = powerOn
+
     def getPowerOn(self):
         return self.__powerOn
 
-    def setName(self,newName):
+    def setName(self, newName):
         self.__name = newName
+
     def getName(self):
         return self.__name
 
-    def setInterruptDelay(self,interruptDelay):
+    def setInterruptDelay(self, interruptDelay):
         self.__interruptDelay = interruptDelay
+
     def getInterruptDelay(self):
         return self.__interruptDelay
 
-    def setWatchdogOn(self,watchdogOn):
+    def setWatchdogOn(self, watchdogOn):
         self.__watchdogOn = watchdogOn
+
     def getWatchdogOn(self):
         return self.__watchdogOn
-
 
 
 # ----------------------------------------------------------------
@@ -594,7 +631,7 @@ import time
 import sys
 
 NETIO230A_UDP_DISCOVER_PORT = 4000
-DETECTION_TIMEOUT=0.2 # should be enough. Usualy we get the answer in 4.6 ms
+DETECTION_TIMEOUT = 0.2  # should be enough. Usualy we get the answer in 4.6 ms
 DEVICE_NAME_TERMINATION = b"\x00\x30\x30\x38\x30"
 # the request to ask for available NETIO-230A on the network (bytes sniffed using wireshark)
 DISCOVER_REQUEST = b"PCEdit\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00" + \
@@ -604,13 +641,14 @@ DISCOVER_REQUEST = b"PCEdit\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\
 
 # thread to run the UDP server that listens to answering NETIOs on your network
 class UDPintsockThread(threading.Thread):
-    def __init__ (self,port,callback_for_found_devices):
+    def __init__(self, port, callback_for_found_devices):
         """ listens to answers from available NETIO-230A devices on the LAN and calls
             callback_for_found_devices([deviceName, ip, sm, gw, mac, answerTime])     """
         threading.Thread.__init__(self)
         self.__port = port
         self.__callback = callback_for_found_devices
         self.__startTime = time.time()
+
     def run(self):
         addr = ('', self.__port)
         # Create socket and bind to address
@@ -623,45 +661,45 @@ class UDPintsockThread(threading.Thread):
                 # Receive messages
                 data, addr = UDPinsock.recvfrom(1024)
                 # keep timestamp of arriving package
-                answerTime=time.time()
+                answerTime = time.time()
             except:
-                #print "server timeout"
+                # print "server timeout"
                 break
             # check if we found a NETIO-230A
-            if data.find(b"IPCam") == 0 and len(data)== 61:
+            if data.find(b"IPCam") == 0 and len(data) == 61:
                 # documentation of data is found on http://wiki.github.com/pklaus/netio230a/netdiscover-protocol
                 deviceName = data[38:data.find(DEVICE_NAME_TERMINATION)].decode('ascii')
                 data = array.array('B', data)
                 ip = []
                 for n in range(0, 4):
-                    ip.append(data[10+n])
-                mac = [0,0,0,0,0,0]
+                    ip.append(data[10 + n])
+                mac = [0, 0, 0, 0, 0, 0]
                 for n in range(0, 6):
-                    mac[n] = data[14+n]
+                    mac[n] = data[14 + n]
                 sm = []
                 for n in range(0, 4):
-                    sm.append(data[20+n])
+                    sm.append(data[20 + n])
                 gw = []
                 for n in range(0, 4):
-                    gw.append(data[27+n])
-                device = [deviceName, ip, sm, gw, mac, (answerTime-self.__startTime)*1000]
+                    gw.append(data[27 + n])
+                device = [deviceName, ip, sm, gw, mac, (answerTime - self.__startTime) * 1000]
                 self.__callback(device)
         UDPinsock.close()
 
 
 def discover_netio230a_devices(callback_for_found_devices):
-    dest = ('<broadcast>',NETIO230A_UDP_DISCOVER_PORT)
-    #dest = ('255.255.255.255',NETIO230A_UDP_DISCOVER_PORT)
-    myUDPintsockThread = UDPintsockThread(NETIO230A_UDP_DISCOVER_PORT,callback_for_found_devices)
+    dest = ('<broadcast>', NETIO230A_UDP_DISCOVER_PORT)
+    # dest = ('255.255.255.255',NETIO230A_UDP_DISCOVER_PORT)
+    myUDPintsockThread = UDPintsockThread(NETIO230A_UDP_DISCOVER_PORT, callback_for_found_devices)
     myUDPintsockThread.start()
 
     # send on all interfaces of the computer:
     # cf. last lines of the comment <http://serverfault.com/questions/72112/how-to-fix-the-global-broadcast-address-255-255-255-255-behavior-on-windows/72152#72152>
     interfaces = all_interfaces()
     # but in case we could not enumerate all interfaces we still want one try:
-    if len(interfaces) == 0: interfaces = [['','']]
+    if len(interfaces) == 0: interfaces = [['', '']]
     for interface in interfaces:
-        iface = "" if interface[1]=="" else socket.inet_ntoa(interface[1])
+        iface = "" if interface[1] == "" else socket.inet_ntoa(interface[1])
         try:
             UDPoutsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             # to allow broadcast communication:
@@ -674,6 +712,7 @@ def discover_netio230a_devices(callback_for_found_devices):
             print("Could not check on interface '{}'".format(iface))
     myUDPintsockThread.join()
 
+
 ## http://code.activestate.com/recipes/439093/#c1
 try:
     import fcntl
@@ -681,6 +720,8 @@ except:
     pass
 import struct
 import array
+
+
 def all_interfaces():
     max_possible = 128  # arbitrary. raise if needed.
     num_bytes = max_possible * 32
@@ -697,15 +738,19 @@ def all_interfaces():
     namestr = names.tostring()
     lst = []
     for i in range(0, outbytes, 40):
-        name = namestr[i:i+16].split(b'\0', 1)[0]
-        ip   = namestr[i+20:i+24]
+        name = namestr[i:i + 16].split(b'\0', 1)[0]
+        ip = namestr[i + 20:i + 24]
         lst.append((name, ip))
     return lst
 
-all_devices=[]
+
+all_devices = []
+
+
 def device_detected_callback(device):
     global all_devices
     all_devices.append(device)
+
 
 # if any software module wants to get all found devices with one call (blocking) then this function can be used:
 def get_all_detected_devices():

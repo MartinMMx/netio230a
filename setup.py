@@ -9,7 +9,7 @@ License: GPLv3
 from distutils.core import setup
 
 setup(name='netio230a',
-      version = '1.1.9',
+      version = '1.1.10',
       description = 'Python package to control the Koukaam NETIO-230A',
       long_description = 'Python software to access the Koukaam NETIO-230A and NETIO-230B: power distribution units / controllable power outlets with Ethernet interface',
       author = 'Philipp Klaus',
